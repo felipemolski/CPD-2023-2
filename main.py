@@ -191,31 +191,6 @@ def build_player_data_hash(players_csv, ratings_csv, tags_csv):
     
     return player_data_hash
 
-
-
-def player_query2(query, player_data_hash):
-    players = []
-    player_ids_added = set()  # Cria um conjunto vazio para armazenar os ids dos jogadores adicionados
-
-    for id, player_data in player_data_hash.items():
-        for word in player_data.name_long.split():
-            if query in word and id not in player_ids_added:
-                players.append(player_data)
-                player_ids_added.add(id)  # Adiciona o id do jogador ao conjunto para evitar duplicações
-
-
-    players.sort(key=lambda player: player.rating, reverse=True)
-    
-    if players:
-        print(f"{'sofifa_id':<10} {'short_name':<20} {'long_name':<45} {'player_positions':<20} {'rating':<10} {'count':<6}")
-        for player in players:
-            print(
-                f"{player.id:<10} {player.name_short:<20} {player.name_long:<45} {','.join(player.positions):<20} {player.rating:<10.6f} {player.rating_count:<6}"
-            )
-    else:
-        print(f"Nenhum jogador foi encontrado.")
-
-
 def player_query(query, player_data_hash, prefix_tree):
     players = []
     player_ids_added = set()  # Cria um conjunto vazio para armazenar os ids dos jogadores adicionados
