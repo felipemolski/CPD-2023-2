@@ -63,36 +63,23 @@ def read_csv(filename):
     return iter(records)
 
 
-def _process_line(line):
-    
-    columns = []
-    
-    line = line.replace("\n", "")
-    
-    # Separe as colunas entre aspas
-    quoted_columns = line.split(',"')
-    
-    if len(quoted_columns) == 2:
-        quoted_columns[1] = quoted_columns[1].split('",')
+def read_csv(filename):
+    with open(filename, "r") as f:
+        for line in f:
+            yield _process_line(line)
 
+def _process_line(line):
+    columns = []
+    line = line.replace("\n", "")
+
+    quoted_columns = line.split(',"')
     if len(quoted_columns) == 2:
-        quoted_columns[0] = quoted_columns[0].split(",")
-        quoted_columns[1][1] = quoted_columns[1][1].split(",")
+        columns = quoted_columns[0].split(",") + [quoted_columns[1].split('",')[0]] + quoted_columns[1].split('",')[1].split(",")
     else:
-        quoted_columns = line.split(",")
-    
-    for item in quoted_columns:
-        if isinstance(item, (list, tuple)):
-            for subitem in item:
-                if isinstance(subitem, (list, tuple)):
-                    for thirditem in subitem:
-                        columns.append(thirditem)
-                else:
-                    columns.append(subitem)
-        else:
-            columns.append(item)
-    
+        columns = line.split(",")
+
     return columns
+
 
 
 def build_prefix_tree(players_csv):
@@ -156,12 +143,13 @@ def build_player_data_hash(players_csv, ratings_csv, tags_csv):
         next(reader_r, None)  # Skip header
 
         for row_r in reader_r:
-            if row_r[1] == str(id):
+            if player_data_hash.get(str(row_r[1])):
                 # Atribua os ratings ao objeto PlayerData
-                player_data_hash[row_r[1]].ratings = [float(rating) for rating in row_r[2:]]
+                player_data_hash[str(row_r[1])].ratings.append(float(row_r[2]))
                 # Calcule o rating e o rating_count
-                player_data_hash[row_r[1]].rating_count = len(player_data_hash[row_r[1]].ratings)
-                player_data_hash[row_r[1]].rating = sum(player_data_hash[row_r[1]].ratings) / player_data_hash[row_r[1]].rating_count 
+                player_data_hash[str(row_r[1])].rating_count = len(player_data_hash[str(row_r[1])].ratings)
+                player_data_hash[str(row_r[1])].rating = sum(player_data_hash[str(row_r[1])].ratings) / player_data_hash[str(row_r[1])].rating_count
+                print(f"{player_data_hash[str(row_r[1])].name_long} {player_data_hash[str(row_r[1])].rating}")
             
     end_time_ratings = time.perf_counter()
     print(f"Tempo de carregamento de ratings.csv: {end_time_ratings - start_time_ratings:.2f} segundos")
@@ -182,6 +170,8 @@ def build_player_data_hash(players_csv, ratings_csv, tags_csv):
 
     total_time = time.perf_counter() - start_time_total
     print(f"Tempo de carregamento total: {total_time:.2f} segundos")
+    
+    #print(f"{player_data_hash['257936'].rating}")
 
     return player_data_hash
 
@@ -196,11 +186,15 @@ def player_query(query, player_data_hash):
                 players.append(player_data)
 
     players.sort(key=lambda player: player.rating, reverse=True)
+    
+    if players:
+        print(f"{'sofifa_id':<10} {'short_name':<15} {'long_name':<35} {'player_positions':<20} {'rating':<10} {'count':<6}")
 
     for player in players:
         print(
-            f"id,{player.id},name_short,{player.name_short},name_long,{player.name_long},positions,{player.positions},rating,{player.rating:.6f},rating_count,{player.rating_count}"
+            f"{player.id:<10} {player.name_short:<15} {player.name_long:<35} {','.join(player.positions):<20} {player.rating:<10.6f} {player.rating_count:<6}"
         )
+
 
 
 
@@ -236,7 +230,7 @@ def top_query(rating, player_data_hash):
 
 def main():
     players_csv = "players.csv"
-    ratings_csv = "rating.csv"
+    ratings_csv = "minirating.csv"
     tags_csv = "tags.csv"
 
     # Build the prefix tree
