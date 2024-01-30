@@ -193,7 +193,7 @@ def build_player_data_hash(players_csv, ratings_csv, tags_csv):
 
 
 
-def player_query(query, player_data_hash):
+def player_query2(query, player_data_hash):
     players = []
     player_ids_added = set()  # Cria um conjunto vazio para armazenar os ids dos jogadores adicionados
 
@@ -215,6 +215,36 @@ def player_query(query, player_data_hash):
     else:
         print(f"Nenhum jogador foi encontrado.")
 
+
+def player_query(query, player_data_hash, prefix_tree):
+    players = []
+    player_ids_added = set()  # Cria um conjunto vazio para armazenar os ids dos jogadores adicionados
+
+    # Consulta a árvore de pesquisa em strings para obter os IDs dos jogadores
+
+    for id in prefix_tree.get_children_with_prefix(query):
+        player_ids_added.add(id)  # Adiciona o id do jogador ao conjunto para evitar duplicações
+
+    # Obtém as informações complementares dos jogadores
+
+    for id in player_ids_added:
+        player_data = player_data_hash[id]
+        players.append(player_data)
+
+    # Ordena os jogadores pela classificação
+
+    players.sort(key=lambda player: player.rating, reverse=True)
+
+    # Imprime os resultados
+
+    if players:
+        print(f"{'sofifa_id':<10} {'short_name':<20} {'long_name':<45} {'player_positions':<20} {'rating':<10} {'count':<6}")
+        for player in players:
+            print(
+                f"{player.id:<10} {player.name_short:<20} {player.name_long:<45} {','.join(player.positions):<20} {player.rating:<10.6f} {player.rating_count:<6}"
+            )
+    else:
+        print(f"Nenhum jogador foi encontrado.")
 
 
 
@@ -271,10 +301,13 @@ def tag_query(tags, player_data_hash):
     player_ids_added = set()  # Cria um conjunto vazio para armazenar os ids dos jogadores adicionados
 
     for id, player_data in player_data_hash.items():
+        all_tags_match = True
         for tag in tags:
-            if tag.strip().strip('"') not in player_data.tags:
+            tag = tag.strip().strip("'").strip('"')  # Limpa a tag
+            if tag not in [player_tag.strip().strip("'").strip('"') for player_tag in player_data.tags]:
+                all_tags_match = False
                 break
-        else:
+        if all_tags_match:
             players.append((player_data.rating, id))
             player_ids_added.add(id)  # Adiciona o id do jogador ao conjunto para evitar duplicações
 
@@ -312,7 +345,7 @@ def main():
             break
 
         if query.startswith("player "):
-            player_query(query[7:], player_data_hash)
+            player_query(query[7:], player_data_hash, prefix_tree)
         elif query.startswith("user "):
             user_query(int(query[5:]), player_data_hash)
         elif query.startswith("top "):
@@ -326,6 +359,7 @@ def main():
         elif query.startswith("tags "):
             try:
                 tags = query[5:].split(" ")
+                print(f"{tags[0]}")
                 tag_query(tags, player_data_hash)
             except (ValueError, IndexError):
                 print(f"Formato de consulta inválido: {query}")
