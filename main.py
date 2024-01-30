@@ -4,7 +4,17 @@ import time
 
 
 class PlayerData:
-    def __init__(self, id, name_short, name_long, positions, nationality, club, league, ratings=None):
+    def __init__(
+        self,
+        id,
+        name_short,
+        name_long,
+        positions,
+        nationality,
+        club,
+        league,
+        ratings=None,
+    ):
         self.id = id
         self.name_short = name_short
         self.name_long = name_long
@@ -13,12 +23,15 @@ class PlayerData:
         self.club = club
         self.league = league
         self.ratings = ratings or []
-        self.rating_count = len(ratings) if ratings else 0 
+        self.rating_count = len(ratings) if ratings else 0
+        self.rating = (
+            sum(rating for rating in ratings) / len(ratings)
+            if ratings
+            else 0.0
+        )
+        self.user_ratings = {}  # Adiciona o atributo user_ratings
 
-        if ratings:
-            self.rating = sum(rating for rating, _ in ratings) / len(ratings)
-        else:
-            self.rating = 0.0
+
             
 class Regex:
     def __init__(self, pattern):
@@ -143,17 +156,23 @@ def build_player_data_hash(players_csv, ratings_csv, tags_csv):
         next(reader_r, None)  # Skip header
 
         for row_r in reader_r:
-            if player_data_hash.get(str(row_r[1])):
-                # Atribua os ratings ao objeto PlayerData
-                player_data_hash[str(row_r[1])].ratings.append(float(row_r[2]))
-                # Calcule o rating e o rating_count
-                #player_data_hash[str(row_r[1])].rating_count = len(player_data_hash[str(row_r[1])].ratings)
-                #player_data_hash[str(row_r[1])].rating = sum(player_data_hash[str(row_r[1])].ratings) / player_data_hash[str(row_r[1])].rating_count
-                #print(f"{player_data_hash[str(row_r[1])].name_long} {player_data_hash[str(row_r[1])].rating}")
-            
-        for key, player in player_data_hash.items():
-            player.rating_count = len(player.ratings)
-            player.rating = (sum(player.ratings) / player.rating_count) if len(player.ratings) > 0 else 0 
+            player_id = str(row_r[1])
+            if player_data_hash.get(player_id):
+                rating = float(row_r[2])
+                username = str(row_r[0])  # Adiciona o username
+
+                # Atribui o rating ao dicionário user_ratings
+                player_data_hash[player_id].user_ratings[username] = rating
+
+                # Atualiza o rating global também, caso necessário
+                player_data_hash[player_id].ratings.append(rating)
+
+        # Calcula o rating global para todos os jogadores
+        for player_data in player_data_hash.values():
+            player_data.rating_count = len(player_data.ratings)
+            player_data.rating = (
+                sum(player_data.ratings) / player_data.rating_count
+            ) if player_data.rating_count > 0 else 0
                 
     end_time_ratings = time.perf_counter()
     print(f"Tempo de carregamento de ratings.csv: {end_time_ratings - start_time_ratings:.2f} segundos")
@@ -200,6 +219,8 @@ def player_query(query, player_data_hash):
             print(
                 f"{player.id:<10} {player.name_short:<20} {player.name_long:<45} {','.join(player.positions):<20} {player.rating:<10.6f} {player.rating_count:<6}"
             )
+    else:
+        print(f"Nenhum jogador foi encontrado.")
 
 
 
@@ -209,20 +230,22 @@ def user_query(username, player_data_hash):
     player_ids_added = set()  # Cria um conjunto vazio para armazenar os ids dos jogadores adicionados
 
     for id, player_data in player_data_hash.items():
-        if player_data.user_ratings.get(username):
-            rating = player_data.user_ratings[username]
+        if player_data.user_ratings.get(str(username)):
+            rating = player_data.user_ratings[str(username)]
             players.append((rating, id))
             player_ids_added.add(id)  # Adiciona o id do jogador ao conjunto para evitar duplicações
 
     players.sort(key=lambda rating_id: (rating_id[0], player_data_hash[rating_id[1]].rating), reverse=True)
 
     if players:
-        print(f"{'rating':<10} {'player_id':<10} {'short_name':<20} {'long_name':<45} {'global_rating':<10} {'count':<6}")
+        print(f"{'sofifa_id':<10} {'short_name':<20} {'long_name':<45} {'global_rating':<15} {'count':<8} {'rating':<10}")
         for rating, id in players[:20]:
-            player_data = player_data_hash[id]
+            player_data = player_data_hash[str(id)]
             print(
-                f"{rating:<10.2f} {id:<10} {player_data.name_short:<20} {player_data.name_long:<45} {player_data.rating:<10.6f} {player_data.rating_count:<6}"
+                f"{id:<10} {player_data.name_short:<20} {player_data.name_long:<45} {player_data.rating:<15.6f} {player_data.rating_count:<8} {rating:<10.1f}"
             )
+    else:
+        print(f"O usuário não foi encontrado.")
 
 
 
