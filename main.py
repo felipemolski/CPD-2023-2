@@ -18,7 +18,7 @@ class PlayerData:
         self.id = id
         self.name_short = name_short
         self.name_long = name_long
-        self.positions = positions
+        self.positions = positions or []
         self.nationality = nationality
         self.club = club
         self.league = league
@@ -83,7 +83,7 @@ def read_csv(filename):
 
 def _process_line(line):
     columns = []
-    line = line.replace("\n", "")
+    line = line.strip("\n")
 
     quoted_columns = line.split(',"')
     if len(quoted_columns) == 2:
@@ -250,19 +250,27 @@ def user_query(username, player_data_hash):
 
 
 
-def top_query(rating, player_data_hash):
+def top_query(position, player_data_hash, n):
     players = []
+    player_ids_added = set()  # Cria um conjunto vazio para armazenar os ids dos jogadores adicionados
 
     for id, player_data in player_data_hash.items():
-        if player_data.rating >= float(rating):
-            players.append(player_data)
+        if player_data.positions and any(position.strip().strip("'").strip('"') == pos.strip().strip("'").strip('"') for pos in player_data.positions) and player_data.rating_count >= 1000:
+            players.append((player_data.rating, id))
+            player_ids_added.add(id)  # Adiciona o id do jogador ao conjunto para evitar duplicações
 
-    players.sort(key=lambda player: player.rating, reverse=True)
+    players.sort(key=lambda rating_id: rating_id[0], reverse=True)
 
-    for player in players:
-        print(
-            f"id,{player.id},name_short,{player.name_short},name_long,{player.name_long},positions,{player.positions},rating,{player.rating:.6f},rating_count,{player.rating_count}"
-        )
+    if players:
+        print(f"{'sofifa_id':<10} {'short_name':<20} {'long_name':<45} {'player_positions':<20} {'nationality':<20} {'club_name':<10} {'league_name':<15} {'rating':<12} {'count':<6}")
+        for rating, id in players[:n]:
+            player_data = player_data_hash[id]
+            print(
+                f"{id:<10} {player_data.name_short:<20} {player_data.name_long:<45} {','.join(player_data.positions):<20} {player_data.nationality:<20} {player_data.club:<10} {player_data.league:<15} {player_data.rating:<12.6f} {player_data.rating_count:<6}"
+            )
+    else:
+        print(f"Não há jogadores na posição {position} com pelo menos 1000 avaliações.")
+
 
 def main():
     players_csv = "players.csv"
@@ -286,8 +294,16 @@ def main():
             player_query(query[7:], player_data_hash)
         elif query.startswith("user "):
             user_query(int(query[5:]), player_data_hash)
-        elif query.startswith("top:"):
-            top_query(float(query[4:]), player_data_hash)
+        elif query.startswith("top "):
+            try:
+                print(f"{query.split(' ')}")
+                starts, n, position = query.split(" ", maxsplit=3)
+            #print(f"{n} {position}")
+            #position = position.strip().strip("'").strip('"')
+                n = int(n.strip())
+                top_query(position, player_data_hash, n)
+            except (ValueError, IndexError):
+                print(f"Formato de consulta inválido: {query} {ValueError} {IndexError}")
         else:
             print("Consulta inválida")
 
