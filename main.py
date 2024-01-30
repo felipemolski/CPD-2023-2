@@ -117,7 +117,7 @@ def build_player_data_hash(players_csv, ratings_csv, tags_csv):
 
         for row in reader:
             #print(f"{row}")
-            if len(row) == 7:
+            if len(row) == 7 and not player_data_hash.get(str(row[0])):
                 id, name_short, name_long, positions, nationality, club, league = row
 
                 player_data = PlayerData(
@@ -147,10 +147,14 @@ def build_player_data_hash(players_csv, ratings_csv, tags_csv):
                 # Atribua os ratings ao objeto PlayerData
                 player_data_hash[str(row_r[1])].ratings.append(float(row_r[2]))
                 # Calcule o rating e o rating_count
-                player_data_hash[str(row_r[1])].rating_count = len(player_data_hash[str(row_r[1])].ratings)
-                player_data_hash[str(row_r[1])].rating = sum(player_data_hash[str(row_r[1])].ratings) / player_data_hash[str(row_r[1])].rating_count
-                print(f"{player_data_hash[str(row_r[1])].name_long} {player_data_hash[str(row_r[1])].rating}")
+                #player_data_hash[str(row_r[1])].rating_count = len(player_data_hash[str(row_r[1])].ratings)
+                #player_data_hash[str(row_r[1])].rating = sum(player_data_hash[str(row_r[1])].ratings) / player_data_hash[str(row_r[1])].rating_count
+                #print(f"{player_data_hash[str(row_r[1])].name_long} {player_data_hash[str(row_r[1])].rating}")
             
+        for key, player in player_data_hash.items():
+            player.rating_count = len(player.ratings)
+            player.rating = (sum(player.ratings) / player.rating_count) if len(player.ratings) > 0 else 0 
+                
     end_time_ratings = time.perf_counter()
     print(f"Tempo de carregamento de ratings.csv: {end_time_ratings - start_time_ratings:.2f} segundos")
 
@@ -179,39 +183,48 @@ def build_player_data_hash(players_csv, ratings_csv, tags_csv):
 
 def player_query(query, player_data_hash):
     players = []
+    player_ids_added = set()  # Cria um conjunto vazio para armazenar os ids dos jogadores adicionados
 
     for id, player_data in player_data_hash.items():
         for word in player_data.name_long.split():
-            if query in word:
+            if query in word and id not in player_ids_added:
                 players.append(player_data)
+                player_ids_added.add(id)  # Adiciona o id do jogador ao conjunto para evitar duplicações
+
 
     players.sort(key=lambda player: player.rating, reverse=True)
     
     if players:
-        print(f"{'sofifa_id':<10} {'short_name':<15} {'long_name':<35} {'player_positions':<20} {'rating':<10} {'count':<6}")
-
-    for player in players:
-        print(
-            f"{player.id:<10} {player.name_short:<15} {player.name_long:<35} {','.join(player.positions):<20} {player.rating:<10.6f} {player.rating_count:<6}"
-        )
-
+        print(f"{'sofifa_id':<10} {'short_name':<20} {'long_name':<45} {'player_positions':<20} {'rating':<10} {'count':<6}")
+        for player in players:
+            print(
+                f"{player.id:<10} {player.name_short:<20} {player.name_long:<45} {','.join(player.positions):<20} {player.rating:<10.6f} {player.rating_count:<6}"
+            )
 
 
 
-def user_query(rating, player_data_hash):
+
+def user_query(username, player_data_hash):
     players = []
+    player_ids_added = set()  # Cria um conjunto vazio para armazenar os ids dos jogadores adicionados
 
     for id, player_data in player_data_hash.items():
-        for rating, _ in player_data.ratings:
-            if rating == int(rating):
-                players.append(player_data)
+        if player_data.user_ratings.get(username):
+            rating = player_data.user_ratings[username]
+            players.append((rating, id))
+            player_ids_added.add(id)  # Adiciona o id do jogador ao conjunto para evitar duplicações
 
-    players.sort(key=lambda player: player.rating, reverse=True)
+    players.sort(key=lambda rating_id: (rating_id[0], player_data_hash[rating_id[1]].rating), reverse=True)
 
-    for player in players[:20]:
-        print(
-            f"id,{player.id},name_short,{player.name_short},name_long,{player.name_long},positions,{player.positions},rating,{player.rating:.6f},rating_count,{player.rating_count}"
-        )
+    if players:
+        print(f"{'rating':<10} {'player_id':<10} {'short_name':<20} {'long_name':<45} {'global_rating':<10} {'count':<6}")
+        for rating, id in players[:20]:
+            player_data = player_data_hash[id]
+            print(
+                f"{rating:<10.2f} {id:<10} {player_data.name_short:<20} {player_data.name_long:<45} {player_data.rating:<10.6f} {player_data.rating_count:<6}"
+            )
+
+
 
 
 def top_query(rating, player_data_hash):
@@ -230,7 +243,7 @@ def top_query(rating, player_data_hash):
 
 def main():
     players_csv = "players.csv"
-    ratings_csv = "minirating.csv"
+    ratings_csv = "rating.csv"
     tags_csv = "tags.csv"
 
     # Build the prefix tree
@@ -248,8 +261,8 @@ def main():
 
         if query.startswith("player "):
             player_query(query[7:], player_data_hash)
-        elif query.startswith("rating:"):
-            user_query(int(query[7:]), player_data_hash)
+        elif query.startswith("user "):
+            user_query(int(query[5:]), player_data_hash)
         elif query.startswith("top:"):
             top_query(float(query[4:]), player_data_hash)
         else:
